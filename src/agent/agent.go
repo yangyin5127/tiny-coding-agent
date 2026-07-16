@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"tiny-coding-agent/pkg/utils"
 	"tiny-coding-agent/src/prompt"
 	"tiny-coding-agent/src/tools"
@@ -39,7 +40,7 @@ func (a *Agent) Run(ctx context.Context) error {
 
 	conversation := []anthropic.MessageParam{}
 	systemPrompt := fmt.Sprintf(prompt.SystemPrompt, utils.Getwd())
-
+	MODEL := os.Getenv("MODEL")
 	tools := []anthropic.ToolUnionParam{}
 	for _, tool := range agentTools {
 		tools = append(tools, anthropic.ToolUnionParam{
@@ -60,12 +61,12 @@ func (a *Agent) Run(ctx context.Context) error {
 				MaxTokens: 8000,
 				Messages:  conversation,
 				System:    []anthropic.TextBlockParam{{Text: systemPrompt}},
-				Model:     "deepseek-v4-flash",
+				Model:     MODEL,
 				Tools:     tools,
 			})
 
 			if err != nil {
-				a.Response <- "模型响应失败: " + err.Error()
+				a.Response <- "Failed to get model response: " + err.Error()
 				continue
 			}
 
