@@ -12,11 +12,5 @@ go mod tidy
 3. Run:
 
 ```bash
-go run ./cmd/tiny-agent
-```
-
-## Current Skeleton
-
-- Starts a Bubble Tea CLI input interface.
-- Type text and press `Enter` to echo input in the status line.
-- Press `Ctrl+C` twice quickly to exit.
+go run ./cmd/main.go
+``` 
