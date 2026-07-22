@@ -15,9 +15,10 @@ type AgentInteractionRequest struct {
 }
 
 type AgentInteractionOption struct {
-	ID       string // option value
-	Title    string
-	Selected bool
+	ID          string // option value
+	Title       string
+	Selected    bool
+	Description string
 }
 
 type AgentInteractionResponse struct {

@@ -41,9 +41,10 @@ type chatMessage struct {
 type agentResponseClosedMsg struct{}
 
 type selectionItem struct {
-	title     string
-	value     string
-	requestId string
+	title       string
+	value       string
+	requestId   string
+	description string
 }
 
 func (i selectionItem) FilterValue() string {
@@ -55,7 +56,7 @@ func (i selectionItem) Title() string {
 }
 
 func (i selectionItem) Description() string {
-	return ""
+	return i.description
 }
 
 func initialModel() model {
@@ -320,11 +321,15 @@ func buildSelectionList(req *tools.AgentInteractionRequest, width int) list.Mode
 		if opt == nil {
 			continue
 		}
-		items = append(items, selectionItem{title: opt.Title, value: opt.ID, requestId: req.ID})
+		items = append(items, selectionItem{title: opt.Title, value: opt.ID, requestId: req.ID, description: opt.Description})
 	}
 
 	delegate := list.NewDefaultDelegate()
-	delegate.ShowDescription = true
+	if req.Type == tools.InteractionTypeApproval {
+		delegate.ShowDescription = false
+	} else {
+		delegate.ShowDescription = true
+	}
 	selectionList := list.New(items, delegate, max(8, width-8), selectionListHeightForWindow(0))
 	selectionList.Title = req.Title
 	selectionList.SetShowHelp(false)
