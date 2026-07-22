@@ -8,7 +8,9 @@ import (
 	"strings"
 	"time"
 	"tiny-coding-agent/src/agent"
+	"tiny-coding-agent/src/tools"
 
+	"charm.land/bubbles/v2/list"
 	"charm.land/bubbles/v2/textarea"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -17,16 +19,18 @@ import (
 )
 
 type model struct {
-	input      textarea.Model
-	messages   []chatMessage
-	width      int
-	height     int
-	inputLines int
-	statusLine string
-	waitingAI  bool
-	lastCtrlC  time.Time
-	ctrlCHits  int
-	quitting   bool
+	input         textarea.Model
+	messages      []chatMessage
+	selection     *tools.AgentInteractionOption
+	selectionList list.Model
+	width         int
+	height        int
+	inputLines    int
+	statusLine    string
+	waitingAI     bool
+	lastCtrlC     time.Time
+	ctrlCHits     int
+	quitting      bool
 }
 
 type chatMessage struct {
@@ -34,9 +38,25 @@ type chatMessage struct {
 	content string
 }
 
-type agentResponseMsg string
-
 type agentResponseClosedMsg struct{}
+
+type selectionItem struct {
+	title     string
+	value     string
+	requestId string
+}
+
+func (i selectionItem) FilterValue() string {
+	return i.title
+}
+
+func (i selectionItem) Title() string {
+	return i.title
+}
+
+func (i selectionItem) Description() string {
+	return ""
+}
 
 func initialModel() model {
 	ti := textarea.New()
@@ -57,11 +77,17 @@ func initialModel() model {
 
 func waitAgentResponse() tea.Cmd {
 	return func() tea.Msg {
-		response, ok := <-codingAgent.Response
-		if !ok {
-			return agentResponseClosedMsg{}
+
+		select {
+		case event := <-codingAgent.InteractionRequest:
+			return event
+		case output, ok := <-codingAgent.Output:
+			if !ok {
+				return agentResponseClosedMsg{}
+			}
+			return output
 		}
-		return agentResponseMsg(response)
+
 	}
 }
 
@@ -77,10 +103,23 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 		m.resizeInput()
 
-	case agentResponseMsg:
-		m.messages = append(m.messages, chatMessage{role: "assistant", content: string(msg)})
+	case *agent.AgentOutput:
+
+		if msg.Type != agent.AgentOutputTypeDebug {
+			m.messages = append(m.messages, chatMessage{role: "assistant", content: msg.Message})
+		} else {
+			m.messages = append(m.messages, chatMessage{role: "DEBUG", content: msg.Message})
+		}
+
 		m.waitingAI = false
 		m.statusLine = "Enter to send · Shift+Enter/Ctrl+J for newline · Ctrl+C to quit"
+		return m, waitAgentResponse()
+
+	case *tools.AgentInteractionRequest:
+		m.selection = msg.Options[0] // Assuming the first option is the default selection
+		m.selectionList = buildSelectionList(msg, m.width)
+		m.waitingAI = false
+		m.statusLine = "Use Up/Down to choose, Enter to submit"
 		return m, waitAgentResponse()
 
 	case agentResponseClosedMsg:
@@ -88,6 +127,51 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyPressMsg:
+		if m.selection != nil {
+			switch msg.String() {
+			case "ctrl+c":
+				now := time.Now()
+				if now.Sub(m.lastCtrlC) <= 900*time.Millisecond {
+					m.ctrlCHits++
+				} else {
+					m.ctrlCHits = 1
+				}
+				m.lastCtrlC = now
+
+				if m.ctrlCHits >= 2 {
+					m.quitting = true
+					return m, tea.Quit
+				}
+				m.statusLine = "Press Ctrl+C again to quit"
+				return m, nil
+			case "enter":
+				selectedItem, ok := m.selectionList.SelectedItem().(selectionItem)
+				if !ok {
+					m.statusLine = "No available options"
+					return m, nil
+				}
+
+				answer := selectedItem.value
+				if strings.TrimSpace(answer) == "" {
+					answer = selectedItem.title
+				}
+
+				codingAgent.InteractionResponse <- &tools.AgentInteractionResponse{
+					OptionID:  answer,
+					RequestID: selectedItem.requestId,
+				}
+				m.statusLine = "user selected " + compactPreview(answer)
+				m.selection = nil
+				m.selectionList = list.Model{}
+				m.waitingAI = true
+				m.ctrlCHits = 0
+				return m, nil
+			}
+
+			m.ctrlCHits = 0
+			m.selectionList, cmd = m.selectionList.Update(msg)
+			return m, cmd
+		}
 
 		switch msg.String() {
 		// newline
@@ -158,7 +242,13 @@ func (m model) View() tea.View {
 
 	contentStyle := lipgloss.NewStyle().Padding(0, 1)
 
-	contentHeight := max(3, m.height-m.inputLines-6)
+	composerInnerHeight := m.inputLines
+	if m.selection != nil {
+
+		composerInnerHeight = selectionListHeightForWindow(m.height)
+	}
+
+	contentHeight := max(3, m.height-composerInnerHeight-6)
 	body := ""
 	if len(m.messages) == 0 {
 		body = contentStyle.Height(contentHeight).Render(
@@ -178,6 +268,9 @@ func (m model) View() tea.View {
 		MarginBottom(1)
 
 	composer := inputStyle.Render(m.input.View())
+	if m.selection != nil {
+		composer = inputStyle.Render(m.selectionList.View())
+	}
 
 	v.SetContent(lipgloss.JoinVertical(
 		lipgloss.Left,
@@ -192,6 +285,9 @@ func (m model) View() tea.View {
 func (m *model) resizeInput() {
 	if m.width > 0 {
 		m.input.SetWidth(max(8, m.width-4))
+		if m.selection != nil {
+			m.selectionList.SetSize(max(8, m.width-8), selectionListHeightForWindow(m.height))
+		}
 	}
 	lines := strings.Count(m.input.Value(), "\n") + 1
 	if lines < 1 {
@@ -209,13 +305,64 @@ func compactPreview(value string) string {
 	return oneLine[:80] + "..."
 }
 
+func defaultSelectedIndex(req *tools.AgentInteractionRequest) int {
+	for idx, opt := range req.Options {
+		if opt != nil && opt.Selected {
+			return idx
+		}
+	}
+	return 0
+}
+
+func buildSelectionList(req *tools.AgentInteractionRequest, width int) list.Model {
+	items := make([]list.Item, 0, len(req.Options))
+	for _, opt := range req.Options {
+		if opt == nil {
+			continue
+		}
+		items = append(items, selectionItem{title: opt.Title, value: opt.ID, requestId: req.ID})
+	}
+
+	delegate := list.NewDefaultDelegate()
+	delegate.ShowDescription = true
+	selectionList := list.New(items, delegate, max(8, width-8), selectionListHeightForWindow(0))
+	selectionList.Title = req.Title
+	selectionList.SetShowHelp(false)
+	selectionList.SetShowStatusBar(false)
+	selectionList.SetFilteringEnabled(false)
+	selectionList.DisableQuitKeybindings()
+	selectionList.Select(defaultSelectedIndex(req))
+	return selectionList
+}
+
+func selectionListHeightForWindow(windowHeight int) int {
+	const defaultHeight = 10
+	if windowHeight <= 0 {
+		return defaultHeight
+	}
+
+	// Reserve room for: header, status line and at least 3 lines of chat content.
+	maxHeight := windowHeight - 9
+	if maxHeight < 3 {
+		return 3
+	}
+	return min(defaultHeight, maxHeight)
+}
+
 func renderChat(messages []chatMessage) string {
 	var out []string
 	for _, msg := range messages {
 		label := "You"
-		if msg.role == "assistant" {
+
+		switch msg.role {
+		case "user":
+			label = "You"
+		case "assistant":
 			label = "AI"
+		case "DEBUG":
+			label = "DEBUG"
 		}
+
 		lines := strings.Split(msg.content, "\n")
 		for i, line := range lines {
 			if i == 0 {
@@ -225,8 +372,8 @@ func renderChat(messages []chatMessage) string {
 			}
 		}
 	}
-	if len(out) > 40 {
-		out = out[len(out)-40:]
+	if len(out) > 30 {
+		out = out[len(out)-30:]
 	}
 	return strings.Join(out, "\n")
 }

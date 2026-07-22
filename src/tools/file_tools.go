@@ -1,19 +1,17 @@
 package tools
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
-	"os/exec"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"os"
 
 	"tiny-coding-agent/pkg/utils"
 
 	"github.com/anthropics/anthropic-sdk-go"
+	"github.com/google/uuid"
 )
 
 var ReadFileTool = ToolDefinition{
@@ -24,12 +22,12 @@ var ReadFileTool = ToolDefinition{
 		Properties: map[string]any{
 			"path": map[string]any{
 				"type":        "string",
-				"description": "File path relative to the working directory",
+				"description": "File path to read",
 			},
 		},
 		Required: []string{"path"},
 	},
-	Function: func(input json.RawMessage) (string, error) {
+	Execute: func(input json.RawMessage) (string, error) {
 		var params struct {
 			Path string `json:"path"`
 		}
@@ -38,16 +36,57 @@ var ReadFileTool = ToolDefinition{
 			return "", err
 		}
 
-		safePath, err := safePath(utils.Getwd(), params.Path)
+		absPath, err := AbsPath(utils.Getwd(), params.Path)
 		if err != nil {
 			return "", err
 		}
 
-		content, err := os.ReadFile(safePath)
+		content, err := os.ReadFile(absPath)
 		if err != nil {
 			return "", err
 		}
 		return string(content), nil
+	},
+	CanExecute: func(input json.RawMessage) (*ExecutionDecision, error) {
+		var params struct {
+			Path string `json:"path"`
+		}
+
+		executionDecision := &ExecutionDecision{
+			Allowed: true,
+		}
+
+		err := json.Unmarshal(input, &params)
+		if err != nil {
+			return nil, err
+		}
+
+		absPath, err := AbsPath(utils.Getwd(), params.Path)
+		if err != nil {
+			return nil, err
+		}
+
+		if !strings.HasPrefix(absPath, utils.Getwd()) {
+			executionDecision.Allowed = false
+			executionDecision.Request = &AgentInteractionRequest{
+				ID:    uuid.New().String(),
+				Title: fmt.Sprintf("Attempted to read a file: %s outside the working directory", params.Path),
+				Type:  InteractionTypeApproval,
+				Options: []*AgentInteractionOption{
+					{
+						ID:    ToolApprovalAllow,
+						Title: "Approve",
+					},
+					{
+						ID:    ToolApprovalDeny,
+						Title: "Deny",
+					},
+				},
+			}
+		}
+
+		return executionDecision, nil
+
 	},
 }
 
@@ -59,7 +98,7 @@ var EditFileTool = ToolDefinition{
 		Properties: map[string]any{
 			"path": map[string]any{
 				"type":        "string",
-				"description": "File path relative to the working directory",
+				"description": "File path to edit",
 			},
 			"old_str": map[string]any{
 				"type":        "string",
@@ -72,7 +111,7 @@ var EditFileTool = ToolDefinition{
 		},
 		Required: []string{"path", "old_str", "new_str"},
 	},
-	Function: func(input json.RawMessage) (string, error) {
+	Execute: func(input json.RawMessage) (string, error) {
 		var params struct {
 			Path   string `json:"path"`
 			OldStr string `json:"old_str"`
@@ -83,24 +122,66 @@ var EditFileTool = ToolDefinition{
 			return "", err
 		}
 
-		safePath, err := safePath(utils.Getwd(), params.Path)
+		absPath, err := AbsPath(utils.Getwd(), params.Path)
 		if err != nil {
 			return "", err
 		}
 
-		content, err := os.ReadFile(safePath)
+		content, err := os.ReadFile(absPath)
 		if err != nil {
 			return "", err
 		}
 
 		newContent := strings.Replace(string(content), params.OldStr, params.NewStr, -1)
 
-		err = os.WriteFile(safePath, []byte(newContent), 0644)
+		err = os.WriteFile(absPath, []byte(newContent), 0644)
 		if err != nil {
 			return "", err
 		}
 
 		return "File edited successfully", nil
+	},
+	CanExecute: func(input json.RawMessage) (*ExecutionDecision, error) {
+		var params struct {
+			Path   string `json:"path"`
+			OldStr string `json:"old_str"`
+			NewStr string `json:"new_str"`
+		}
+
+		executionDecision := &ExecutionDecision{
+			Allowed: true,
+		}
+
+		err := json.Unmarshal(input, &params)
+		if err != nil {
+			return nil, err
+		}
+
+		absPath, err := AbsPath(utils.Getwd(), params.Path)
+		if err != nil {
+			return nil, err
+		}
+
+		if !strings.HasPrefix(absPath, utils.Getwd()) {
+			executionDecision.Allowed = false
+			executionDecision.Request = &AgentInteractionRequest{
+				ID:    uuid.New().String(),
+				Title: fmt.Sprintf("Attempted to edit a file: %s outside the working directory", params.Path),
+				Type:  InteractionTypeApproval,
+				Options: []*AgentInteractionOption{
+					{
+						ID:    ToolApprovalAllow,
+						Title: "Approve",
+					},
+					{
+						ID:    ToolApprovalDeny,
+						Title: "Deny",
+					},
+				},
+			}
+		}
+
+		return executionDecision, nil
 	},
 }
 
@@ -112,7 +193,7 @@ var WriteFileTool = ToolDefinition{
 		Properties: map[string]any{
 			"path": map[string]any{
 				"type":        "string",
-				"description": "File path relative to the working directory",
+				"description": "File path to write to",
 			},
 			"content": map[string]any{
 				"type":        "string",
@@ -121,7 +202,7 @@ var WriteFileTool = ToolDefinition{
 		},
 		Required: []string{"path", "content"},
 	},
-	Function: func(input json.RawMessage) (string, error) {
+	Execute: func(input json.RawMessage) (string, error) {
 		var params struct {
 			Path    string `json:"path"`
 			Content string `json:"content"`
@@ -131,17 +212,57 @@ var WriteFileTool = ToolDefinition{
 			return "", err
 		}
 
-		safePath, err := safePath(utils.Getwd(), params.Path)
+		absPath, err := AbsPath(utils.Getwd(), params.Path)
 		if err != nil {
 			return "", err
 		}
 
-		err = os.WriteFile(safePath, []byte(params.Content), 0644)
+		err = os.WriteFile(absPath, []byte(params.Content), 0644)
 		if err != nil {
 			return "", err
 		}
 
 		return "File written successfully", nil
+	},
+	CanExecute: func(input json.RawMessage) (*ExecutionDecision, error) {
+		var params struct {
+			Path string `json:"path"`
+		}
+
+		executionDecision := &ExecutionDecision{
+			Allowed: true,
+		}
+
+		err := json.Unmarshal(input, &params)
+		if err != nil {
+			return nil, err
+		}
+
+		absPath, err := AbsPath(utils.Getwd(), params.Path)
+		if err != nil {
+			return nil, err
+		}
+
+		if !strings.HasPrefix(absPath, utils.Getwd()) {
+			executionDecision.Allowed = false
+			executionDecision.Request = &AgentInteractionRequest{
+				ID:    uuid.New().String(),
+				Title: fmt.Sprintf("Attempted to write to a file: %s outside the working directory", params.Path),
+				Type:  InteractionTypeApproval,
+				Options: []*AgentInteractionOption{
+					{
+						ID:    ToolApprovalAllow,
+						Title: "Approve",
+					},
+					{
+						ID:    ToolApprovalDeny,
+						Title: "Deny",
+					},
+				},
+			}
+		}
+
+		return executionDecision, nil
 	},
 }
 
@@ -158,7 +279,7 @@ var GlobTool = ToolDefinition{
 		},
 		Required: []string{"pattern"},
 	},
-	Function: func(input json.RawMessage) (string, error) {
+	Execute: func(input json.RawMessage) (string, error) {
 		var params struct {
 			Pattern string `json:"pattern"`
 		}
@@ -183,85 +304,9 @@ var GlobTool = ToolDefinition{
 
 		return strings.Join(resutls, "\n"), nil
 	},
-}
-
-var BashTool = ToolDefinition{
-	Name:        "bash",
-	Description: "Execute a bash command and return the output",
-	InputSchema: anthropic.ToolInputSchemaParam{
-		Type: "object",
-		Properties: map[string]any{
-			"command": map[string]any{
-				"type":        "string",
-				"description": "The bash command to execute",
-			},
-		},
-		Required: []string{"command"},
-	},
-	Function: func(input json.RawMessage) (string, error) {
-		var params struct {
-			Command string `json:"command"`
-		}
-		err := json.Unmarshal(input, &params)
-		if err != nil {
-			return "", err
-		}
-
-		dangerousCommands := []string{
-			"rm -rf /",
-			"rm -rf ~",
-			"sudo",
-			"shutdown",
-			"reboot",
-			"init 0",
-			"halt",
-			"poweroff",
-			"mkfs",
-			"dd if=/dev/zero",
-			":(){ :|:& };:",
-			"> /dev/",
-			">/dev/",
-			"chmod 777 /",
-			"chown -R",
-			"passwd",
-			"killall",
-			"pkill",
-			"systemctl stop",
-			"service .* stop",
-			"kill -9"}
-
-		for _, dangerousCommand := range dangerousCommands {
-			if strings.Contains(params.Command, dangerousCommand) {
-				return "", fmt.Errorf("dangerous command detected: %s", dangerousCommand)
-			}
-		}
-
-		// Create context with timeout
-		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-		defer cancel()
-
-		cmd := exec.CommandContext(ctx, "bash", "-c", params.Command)
-		cmd.Dir = utils.Getwd()
-		output, err := cmd.CombinedOutput()
-
-		if ctx.Err() == context.DeadlineExceeded {
-			return "", fmt.Errorf("command execution timed out")
-		}
-
-		// Check for command execution errors
-		if err != nil {
-			return "", fmt.Errorf("command execution failed: %v, output: %s", err, string(output))
-		}
-
-		result := strings.TrimSpace(string(output))
-		if result == "" {
-			result = "(no output)"
-		}
-
-		if len(result) > 5000 {
-			result = result[:5000]
-		}
-
-		return result, nil
+	CanExecute: func(input json.RawMessage) (*ExecutionDecision, error) {
+		return &ExecutionDecision{
+			Allowed: true,
+		}, nil
 	},
 }

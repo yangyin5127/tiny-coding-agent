@@ -21,18 +21,58 @@ var agentTools = []tools.ToolDefinition{
 	tools.GlobTool,
 }
 
+const (
+	AgentOutputTypeDebug    = "debug"
+	AgentOutputTypeError    = "error"
+	AgentOutputTypeText     = "text"
+	AgentOutputTypeThinking = "thinking"
+	AgentOutputTypeToolUse  = "tool_use"
+)
+
+type AgentOutput struct {
+	Type    string
+	Message string
+	Params  map[string]any
+}
+
+func NewAgentOutput(outputType, message string, params map[string]any) *AgentOutput {
+	return &AgentOutput{
+		Type:    outputType,
+		Message: message,
+		Params:  params,
+	}
+}
+
+func NewAgentOutputDebug(message string) *AgentOutput {
+	return &AgentOutput{
+		Type:    AgentOutputTypeDebug,
+		Message: message,
+	}
+}
+
+func NewAgentOutputError(message string) *AgentOutput {
+	return &AgentOutput{
+		Type:    AgentOutputTypeError,
+		Message: message,
+	}
+}
+
 type Agent struct {
-	client      *anthropic.Client
-	UserMessage chan *anthropic.MessageParam
-	Response    chan string
+	client              *anthropic.Client
+	UserMessage         chan *anthropic.MessageParam
+	Output              chan *AgentOutput
+	InteractionRequest  chan *tools.AgentInteractionRequest
+	InteractionResponse chan *tools.AgentInteractionResponse
 }
 
 func NewAgent(apiKey string, anthropicBaseUrl string) *Agent {
 	client := anthropic.NewClient(option.WithAPIKey(apiKey), option.WithBaseURL(anthropicBaseUrl))
 	return &Agent{
-		client:      &client,
-		UserMessage: make(chan *anthropic.MessageParam),
-		Response:    make(chan string, 10),
+		client:              &client,
+		UserMessage:         make(chan *anthropic.MessageParam),
+		Output:              make(chan *AgentOutput),
+		InteractionRequest:  make(chan *tools.AgentInteractionRequest),
+		InteractionResponse: make(chan *tools.AgentInteractionResponse),
 	}
 }
 
@@ -66,26 +106,26 @@ func (a *Agent) Run(ctx context.Context) error {
 			})
 
 			if err != nil {
-				a.Response <- "Failed to get model response: " + err.Error()
+				a.Output <- NewAgentOutputError("Failed to get model response: " + err.Error())
 				continue
 			}
 
 			conversation = append(conversation, message.ToParam())
 
 			toolResults := []anthropic.ContentBlockParamUnion{}
+
 			for _, content := range message.Content {
 				if content.Type == "tool_use" {
 					result := a.executeTool(content.ID, content.Name, content.Input)
 					toolResults = append(toolResults, result)
-
 				} else {
 
 					if content.Type == "text" {
-						a.Response <- content.Text
+						a.Output <- NewAgentOutput(AgentOutputTypeText, content.Text, nil)
 					}
 
 					if content.Type == "thinking" {
-						a.Response <- "Thinking... " + content.Thinking
+						a.Output <- NewAgentOutput(AgentOutputTypeThinking, "Thinking... "+content.Thinking, nil)
 					}
 				}
 
@@ -116,12 +156,35 @@ func (a *Agent) executeTool(id, name string, input json.RawMessage) anthropic.Co
 		return anthropic.NewToolResultBlock(id, "tool not found", true)
 	}
 
-	result, err := toolDefinition.Function(input)
+	if toolDefinition.CanExecute != nil {
+		executionDecision, err := toolDefinition.CanExecute(input)
+		if err != nil {
+			return anthropic.NewToolResultBlock(id, "Failed to determine if tool can be executed: "+err.Error(), true)
+		}
+		if !executionDecision.Allowed {
+
+			// debug info
+			// a.Output <- NewAgentOutput(AgentOutputTypeDebug, "Waiting for user permission to execute tool "+name, nil)
+			// ask user to grant permission for tool execution
+			a.InteractionRequest <- executionDecision.Request
+
+			// wait for user permission response
+			approveResult := <-a.InteractionResponse
+
+			if approveResult.OptionID != tools.ToolApprovalAllow {
+				a.Output <- NewAgentOutputError("Execution of tool " + name + " was not allowed")
+				return anthropic.NewToolResultBlock(id, "Tool execution denied by user approval policy. The user did not grant permission to run this tool.", false)
+			}
+
+		}
+	}
+
+	result, err := toolDefinition.Execute(input)
 
 	if err != nil {
 		return anthropic.NewToolResultBlock(id, err.Error(), true)
 	}
-	a.Response <- "Ran " + name + ""
+	a.Output <- NewAgentOutput(AgentOutputTypeToolUse, "Ran "+name+"", nil)
 
 	return anthropic.NewToolResultBlock(id, result, false)
 
