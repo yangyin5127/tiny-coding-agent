@@ -85,7 +85,7 @@ var BashTool = ToolDefinition{
 		},
 		Required: []string{"command"},
 	},
-	Execute: func(input json.RawMessage) (string, error) {
+	Execute: func(input json.RawMessage, rt *ToolRuntime) (string, error) {
 		var params struct {
 			Command string `json:"command"`
 		}
@@ -137,6 +137,11 @@ var BashTool = ToolDefinition{
 		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 		defer cancel()
 
+		rt.Emit(ToolEvent{
+			Type:    "info",
+			Message: fmt.Sprintf("%s", params.Command),
+			Data:    nil,
+		})
 		cmd := exec.CommandContext(ctx, "bash", "-c", params.Command)
 		cmd.Dir = utils.Getwd()
 		output, err := cmd.CombinedOutput()
@@ -154,6 +159,11 @@ var BashTool = ToolDefinition{
 		if result == "" {
 			result = "(no output)"
 		}
+		rt.Emit(ToolEvent{
+			Type:    "info",
+			Message: fmt.Sprintf("%s", result),
+			Data:    nil,
+		})
 
 		if len(result) > 5000 {
 			result = result[:5000]

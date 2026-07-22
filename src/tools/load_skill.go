@@ -148,7 +148,7 @@ var LoadSkill = ToolDefinition{
 		},
 		Required: []string{"name"},
 	},
-	Execute: func(input json.RawMessage) (string, error) {
+	Execute: func(input json.RawMessage, rt *ToolRuntime) (string, error) {
 		var params struct {
 			Name string `json:"name"`
 		}
@@ -160,6 +160,12 @@ var LoadSkill = ToolDefinition{
 		if !ok {
 			return "", fmt.Errorf("skill not found: %s", params.Name)
 		}
+
+		rt.Emit(ToolEvent{
+			Type:    "info",
+			Message: fmt.Sprintf("Loading skill: %s", skill.Name),
+			Data:    nil,
+		})
 
 		data, err := os.ReadFile(skill.Path)
 		if err != nil {

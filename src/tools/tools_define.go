@@ -12,13 +12,22 @@ const (
 	ToolApprovalDeny  = "deny"
 )
 
+type ToolEvent struct {
+	Type    string
+	Message string
+	Data    any
+}
+
+type ToolRuntime struct {
+	Emit func(event ToolEvent)
+}
+
 type ToolDefinition struct {
 	Name        string                         `json:"name"`
 	Description string                         `json:"description"`
 	InputSchema anthropic.ToolInputSchemaParam `json:"input_schema"`
-	Execute     func(input json.RawMessage) (string, error)
-
-	CanExecute func(input json.RawMessage) (*ExecutionDecision, error)
+	Execute     func(input json.RawMessage, rt *ToolRuntime) (string, error)
+	CanExecute  func(input json.RawMessage) (*ExecutionDecision, error)
 }
 
 type ExecutionDecision struct {

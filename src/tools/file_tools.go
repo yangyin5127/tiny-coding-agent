@@ -27,7 +27,7 @@ var ReadFileTool = ToolDefinition{
 		},
 		Required: []string{"path"},
 	},
-	Execute: func(input json.RawMessage) (string, error) {
+	Execute: func(input json.RawMessage, rt *ToolRuntime) (string, error) {
 		var params struct {
 			Path string `json:"path"`
 		}
@@ -41,10 +41,17 @@ var ReadFileTool = ToolDefinition{
 			return "", err
 		}
 
+		rt.Emit(ToolEvent{
+			Type:    "info",
+			Message: fmt.Sprintf("Read file: %s", absPath),
+			Data:    nil,
+		})
+
 		content, err := os.ReadFile(absPath)
 		if err != nil {
 			return "", err
 		}
+
 		return string(content), nil
 	},
 	CanExecute: func(input json.RawMessage) (*ExecutionDecision, error) {
@@ -111,7 +118,7 @@ var EditFileTool = ToolDefinition{
 		},
 		Required: []string{"path", "old_str", "new_str"},
 	},
-	Execute: func(input json.RawMessage) (string, error) {
+	Execute: func(input json.RawMessage, rt *ToolRuntime) (string, error) {
 		var params struct {
 			Path   string `json:"path"`
 			OldStr string `json:"old_str"`
@@ -133,6 +140,12 @@ var EditFileTool = ToolDefinition{
 		}
 
 		newContent := strings.Replace(string(content), params.OldStr, params.NewStr, -1)
+
+		rt.Emit(ToolEvent{
+			Type:    "info",
+			Message: fmt.Sprintf("Edited file: %s", absPath),
+			Data:    nil,
+		})
 
 		err = os.WriteFile(absPath, []byte(newContent), 0644)
 		if err != nil {
@@ -202,7 +215,7 @@ var WriteFileTool = ToolDefinition{
 		},
 		Required: []string{"path", "content"},
 	},
-	Execute: func(input json.RawMessage) (string, error) {
+	Execute: func(input json.RawMessage, rt *ToolRuntime) (string, error) {
 		var params struct {
 			Path    string `json:"path"`
 			Content string `json:"content"`
@@ -216,6 +229,12 @@ var WriteFileTool = ToolDefinition{
 		if err != nil {
 			return "", err
 		}
+
+		rt.Emit(ToolEvent{
+			Type:    "info",
+			Message: fmt.Sprintf("Writing file: %s", absPath),
+			Data:    nil,
+		})
 
 		err = os.WriteFile(absPath, []byte(params.Content), 0644)
 		if err != nil {
@@ -279,7 +298,7 @@ var GlobTool = ToolDefinition{
 		},
 		Required: []string{"pattern"},
 	},
-	Execute: func(input json.RawMessage) (string, error) {
+	Execute: func(input json.RawMessage, rt *ToolRuntime) (string, error) {
 		var params struct {
 			Pattern string `json:"pattern"`
 		}
@@ -293,16 +312,22 @@ var GlobTool = ToolDefinition{
 			return "", err
 		}
 
-		var resutls []string
+		rt.Emit(ToolEvent{
+			Type:    "info",
+			Message: fmt.Sprintf("Found %d files matching pattern: %s", len(matches), params.Pattern),
+			Data:    nil,
+		})
+
+		var results []string
 		for _, match := range matches {
 			relPath, err := filepath.Rel(utils.Getwd(), match)
 			if err != nil {
 				return "", err
 			}
-			resutls = append(resutls, relPath)
+			results = append(results, relPath)
 		}
 
-		return strings.Join(resutls, "\n"), nil
+		return strings.Join(results, "\n"), nil
 	},
 	CanExecute: func(input json.RawMessage) (*ExecutionDecision, error) {
 		return &ExecutionDecision{

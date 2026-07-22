@@ -190,12 +190,16 @@ func (a *Agent) executeTool(id, name string, input json.RawMessage) anthropic.Co
 		}
 	}
 
-	result, err := toolDefinition.Execute(input)
+	a.Output <- NewAgentOutput(AgentOutputTypeToolUse, "Ran "+name+"", nil)
+	result, err := toolDefinition.Execute(input, &tools.ToolRuntime{
+		Emit: func(event tools.ToolEvent) {
+			a.Output <- NewAgentOutput(AgentOutputTypeToolUse, "\t"+event.Message, nil)
+		},
+	})
 
 	if err != nil {
 		return anthropic.NewToolResultBlock(id, err.Error(), true)
 	}
-	a.Output <- NewAgentOutput(AgentOutputTypeToolUse, "Ran "+name+"", nil)
 
 	return anthropic.NewToolResultBlock(id, result, false)
 
