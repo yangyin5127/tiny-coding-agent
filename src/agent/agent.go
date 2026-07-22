@@ -19,6 +19,7 @@ var agentTools = []tools.ToolDefinition{
 	tools.WriteFileTool,
 	tools.EditFileTool,
 	tools.GlobTool,
+	tools.LoadSkill,
 }
 
 const (
@@ -80,6 +81,16 @@ func (a *Agent) Run(ctx context.Context) error {
 
 	conversation := []anthropic.MessageParam{}
 	systemPrompt := fmt.Sprintf(prompt.SystemPrompt, utils.Getwd())
+
+	if skillsPromptPart, err := tools.LoadSkills(utils.Getwd()); err == nil {
+		if len(skillsPromptPart) > 0 {
+			systemPrompt += skillsPromptPart
+			a.Output <- NewAgentOutput(AgentOutputTypeDebug, "Loaded skills success", nil)
+		}
+
+	}
+	// a.Output <- NewAgentOutput(AgentOutputTypeDebug, "Loaded system prompt:\n"+systemPrompt, nil)
+
 	MODEL := os.Getenv("MODEL")
 	tools := []anthropic.ToolUnionParam{}
 	for _, tool := range agentTools {
