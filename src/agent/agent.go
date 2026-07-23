@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"tiny-coding-agent/pkg/utils"
+	"tiny-coding-agent/src/mcp"
 	"tiny-coding-agent/src/prompt"
 	"tiny-coding-agent/src/tools"
 
@@ -64,6 +65,7 @@ type Agent struct {
 	Output              chan *AgentOutput
 	InteractionRequest  chan *tools.AgentInteractionRequest
 	InteractionResponse chan *tools.AgentInteractionResponse
+	toolDefinitions     []tools.ToolDefinition
 }
 
 func NewAgent(apiKey string, anthropicBaseUrl string) *Agent {
@@ -92,9 +94,10 @@ func (a *Agent) Run(ctx context.Context) error {
 	// a.Output <- NewAgentOutput(AgentOutputTypeDebug, "Loaded system prompt:\n"+systemPrompt, nil)
 
 	MODEL := os.Getenv("MODEL")
-	tools := []anthropic.ToolUnionParam{}
+	toolParams := []anthropic.ToolUnionParam{}
+	a.toolDefinitions = append([]tools.ToolDefinition{}, agentTools...)
 	for _, tool := range agentTools {
-		tools = append(tools, anthropic.ToolUnionParam{
+		toolParams = append(toolParams, anthropic.ToolUnionParam{
 			OfTool: &anthropic.ToolParam{
 				Name:        tool.Name,
 				Description: anthropic.String(tool.Description),
@@ -102,6 +105,33 @@ func (a *Agent) Run(ctx context.Context) error {
 			},
 		})
 	}
+
+	// load mcp
+	mcpManager := mcp.NewManager()
+	mcpServers, mcpTools, err := mcpManager.LoadAllTools(ctx, utils.Getwd())
+	if err != nil {
+		a.Output <- NewAgentOutputError("Failed to load MCP tools: " + err.Error())
+		return err
+	}
+
+	for mcpServerName := range mcpServers {
+		a.Output <- NewAgentOutput(AgentOutputTypeDebug, fmt.Sprintf("Loaded MCP server '%s' success", mcpServerName), nil)
+	}
+
+	for _, tool := range mcpTools {
+		a.toolDefinitions = append(a.toolDefinitions, tool)
+		toolParams = append(toolParams, anthropic.ToolUnionParam{
+			OfTool: &anthropic.ToolParam{
+				Name:        tool.Name,
+				Description: anthropic.String(tool.Description),
+				InputSchema: tool.InputSchema,
+			},
+		})
+		// a.Output <- NewAgentOutput(AgentOutputTypeDebug, "Loaded MCP tool: "+tool.Name, nil)
+	}
+
+	a.Output <- NewAgentOutput(AgentOutputTypeDebug, fmt.Sprintf("Totally loaded %d MCP tools", len(mcpTools)), nil)
+
 	for {
 		userMessage := <-a.UserMessage
 		conversation = append(conversation, *userMessage)
@@ -113,7 +143,7 @@ func (a *Agent) Run(ctx context.Context) error {
 				Messages:  conversation,
 				System:    []anthropic.TextBlockParam{{Text: systemPrompt}},
 				Model:     MODEL,
-				Tools:     tools,
+				Tools:     toolParams,
 			})
 
 			if err != nil {
@@ -157,7 +187,7 @@ func (a *Agent) Run(ctx context.Context) error {
 
 func (a *Agent) executeTool(id, name string, input json.RawMessage) anthropic.ContentBlockParamUnion {
 	var toolDefinition *tools.ToolDefinition
-	for _, tool := range agentTools {
+	for _, tool := range a.toolDefinitions {
 		if tool.Name == name {
 			toolDefinition = &tool
 			break
