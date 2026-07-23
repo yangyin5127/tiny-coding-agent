@@ -84,6 +84,11 @@ func ConvertTool(server string, client *Client, mcpTool ToolInfo) tools.ToolDefi
 func (m *Manager) LoadConfig(workDir string) (*MCPConfig, error) {
 	// Load the MCP configuration from the specified work directory.
 	configPath := fmt.Sprintf("%s/.tiny-coding-agent/.mcp.json", workDir)
+
+	// check if exists
+	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+		return nil, nil
+	}
 	data, err := os.ReadFile(configPath)
 	if err != nil {
 		return nil, err
@@ -104,6 +109,9 @@ func (m *Manager) LoadAllTools(ctx context.Context, workDir string) (map[string]
 	config, err := m.LoadConfig(workDir)
 	if err != nil {
 		return nil, nil, err
+	}
+	if config == nil {
+		return nil, nil, nil
 	}
 
 	var allTools []tools.ToolDefinition
