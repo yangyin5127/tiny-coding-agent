@@ -60,7 +60,18 @@ MODEL=
 ### 3. Run
 
 ```bash
+# debug
 go run ./cmd/tiny-coding-agent/main.go
+```
+
+install
+```bash
+
+# install
+go install ./cmd/tiny-coding-agent
+
+# project dir
+tiny-coding-agent
 ```
 
 ---
