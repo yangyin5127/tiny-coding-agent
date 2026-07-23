@@ -60,7 +60,7 @@ MODEL=
 ### 3. Run
 
 ```bash
-go run ./cmd/main.go
+go run ./cmd/tiny-coding-agent/main.go
 ```
 
 ---
