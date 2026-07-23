@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 	"time"
+	"tiny-coding-agent/pkg/utils"
 	"tiny-coding-agent/src/agent"
 	"tiny-coding-agent/src/tools"
 
@@ -386,9 +387,9 @@ func renderChat(messages []chatMessage) string {
 var codingAgent *agent.Agent
 
 func main() {
-	err := godotenv.Load()
+	err := godotenv.Load(utils.ExpandHome("~/.tiny-coding-agent/agent.conf"))
 	if err != nil {
-		log.Fatal("Error loading .env file")
+		log.Fatal("Error loading ~/.tiny-coding-agent/agent.conf file")
 	}
 
 	anthropicBaseUrl := os.Getenv("ANTHROPIC_BASE_URL")
