@@ -114,6 +114,10 @@ func (m *Manager) LoadAllTools(ctx context.Context, workDir string) (map[string]
 			return nil, nil, err
 		}
 
+		if transport == nil {
+			continue
+		}
+
 		client := NewClient(transport, 0)
 
 		_, err = client.Initialize(ctx)
@@ -126,7 +130,6 @@ func (m *Manager) LoadAllTools(ctx context.Context, workDir string) (map[string]
 		_ = client.Initialized(ctx)
 
 		mcpTools, err := client.ListTools(ctx)
-		fmt.Printf("Listing tools for MCP server '%s', found %d tools  err:%+v\n", serverName, len(mcpTools), err)
 		if err != nil {
 			client.Close()
 			return nil, nil, err
