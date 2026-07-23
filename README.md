@@ -1,56 +1,54 @@
 # Tiny Coding Agent
 
 A tiny coding agent written in Go 
-用Go语言编写tiny coding agent
+
+用Go语言实现的tiny coding agent
 
 ---
 
-## Features / 功能
+## Features
 
-### 🛠 Built-in Tools / 内置工具
+### 🛠 Built-in Tools
+ 
 
-built-in capabilities:
-内置能力：
-
-| Tool / 工具 | Description / 描述 |
+| Tool  | Description  |
 |-------------|-------------------|
-| `bash` | Execute bash commands with automatic dangerous command detection / 执行 bash 命令 |
+| `bash` | Execute bash commands / 执行 bash 命令 |
 | `read_file` | Read file contents / 读取文件内容 |
 | `write_file` | Write content to a file / 写入文件内容 |
-| `edit_file` | Make edits to a text file by replacing strings / 编辑文本文件 |
+| `edit_file` | Edit file contents / 编辑文本文件 |
 | `glob` | List files matching a glob pattern / 列出匹配 glob 模式的文件 |
 | `load_skill` | Load content of skill / 加载技能（Skill）内容 |
 | `mcp` | Interact with external MCP servers / 与外部MCP服务交互 |
 
 ---
 
-## Quick Start / 快速开始
+## Quick Start
 
-### Prerequisites / 前置要求
+### Prerequisites
 
 - Go 1.22+
-- An Anthropic-compatible API key / 一个兼容 Anthropic 的 API和密钥
+- An Anthropic-compatible API key / 兼容 Anthropic 的 API和密钥即可
 
-### 1. Setup / 安装
+### 1. Setup
 
 ```bash
-# Clone the repository / 克隆仓库
+# Clone the repository 
 git clone <repo-url>
 cd tiny-coding-agent
 
-# Install dependencies / 安装依赖
+# Install dependencies
 go mod tidy
 ```
 
-### 2. Configuration / 配置
+### 2. Configuration
 
 ```bash
 mkdir -p ~/.tiny-coding-agent
 cp conf.example ~/.tiny-coding-agent/agent.conf
 ```
 
-Then edit `~/.tiny-coding-agent/agent.conf`:
-然后编辑 `~/.tiny-coding-agent/agent.conf`：
+vim `~/.tiny-coding-agent/agent.conf`:
 
 ```
 ANTHROPIC_BASE_URL=
@@ -58,35 +56,25 @@ ANTHROPIC_API_KEY=
 MODEL=
 ```
 
-### 3. Run / 运行
+| Variable | Description  | Example   |
+|----------------|--------------------|----------------|
+| `ANTHROPIC_BASE_URL` | Anthropic API base URL / Anthropic API兼容协议地址 | `https://api.deepseek.com/anthropic` |
+| `ANTHROPIC_API_KEY` | Your Anthropic API key / API密钥 | `sk-ant-...` |
+| `MODEL` | The model to use / 模型 | `deepseek-v4-flash` |
+
+
+### 3. Run
 
 ```bash
 go run ./cmd/main.go
 ```
 
 ---
-
-## Configuration / 配置说明
-
-The agent loads configuration from `~/.tiny-coding-agent/agent.conf`.
-
-agent从 `~/.tiny-coding-agent/agent.conf` 加载配置。
-
-### Environment Variables / 环境变量
-
-| Variable / 变量 | Description / 描述 | Example / 示例 |
-|----------------|--------------------|----------------|
-| `ANTHROPIC_BASE_URL` | Anthropic API base URL / Anthropic API兼容协议地址 | `https://api.anthropic.com`, `https://api.deepseek.com/anthropic` |
-| `ANTHROPIC_API_KEY` | Your Anthropic API key / API 密钥 | `sk-ant-...` |
-| `MODEL` | The model to use / 模型 | `claude-sonnet-4-20250514`, `deepseek-v4-flash` |
-
-
-A sample template is provided at [`conf.example`](conf.example) in the project root.
-项目根目录提供了示例模板 [`conf.example`](conf.example)。
-
+ 
 ### MCP Servers / MCP 服务器
 
 Configure external MCP servers to extend the agent's capabilities.
+
 配置外部 MCP服务以扩展代理能力。
 
 `.tiny-coding-agent/.mcp.json` 配置至 project 根目录下的示例文件:
@@ -112,12 +100,13 @@ Configure external MCP servers to extend the agent's capabilities.
 ### Skills / 技能
 
 Place `SKILL.md` files in the following directories:
+
 将 `SKILL.md` 文件放置在以下目录：
 
 | Directory / 目录 | Description / 描述 |
 |------------------|--------------------|
-| `.tiny-coding-agent/skills/` | Project agent skills / 项目代理技能 |
-| `~/.tiny-coding-agent/skills/` | Global skills (user-level) / 全局技能（用户级） |
+| `.tiny-coding-agent/skills/` | Project agent skills / 项目级 |
+| `~/.tiny-coding-agent/skills/` | Global skills (user-level) / 全局级  |
 
 ---
 
