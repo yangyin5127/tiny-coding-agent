@@ -8,18 +8,12 @@ A tiny coding agent written in Go
 
 ## Features
 
-### 🛠 Built-in Tools
  
-
-| Tool  | Description  |
-|-------------|-------------------|
-| `bash` | Execute bash commands / 执行 bash 命令 |
-| `read_file` | Read file contents / 读取文件内容 |
-| `write_file` | Write content to a file / 写入文件内容 |
-| `edit_file` | Edit file contents / 编辑文本文件 |
-| `glob` | List files matching a glob pattern / 列出匹配 glob 模式的文件 |
-| `load_skill` | Load content of skill / 加载技能（Skill）内容 |
-| `mcp` | Interact with external MCP servers / 与外部MCP服务交互 |
+- [x] coding / 编码
+- [x] skills
+- [x] MCP
+- [ ] context compact / 上下文压缩
+- [ ] hooks / 钩子
 
 ---
 
