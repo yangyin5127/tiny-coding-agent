@@ -75,7 +75,12 @@ tiny-coding-agent
 ```
 
 ---
- 
+
+### preview
+
+![Tiny Coding Agent Preview](./preview/preview.jpg)
+
+
 ### MCP Servers / MCP 服务器
 
 Configure external MCP servers to extend the agent's capabilities.
@@ -114,41 +119,7 @@ Place `SKILL.md` files in the following directories:
 | `~/.tiny-coding-agent/skills/` | Global skills (user-level) / 全局级  |
 
 ---
-
-## Project Structure / 项目结构
-
-```
-tiny-coding-agent/
-├── cmd/
-│   └── main.go              # Entry point with TUI / TUI 入口
-├── pkg/
-│   └── utils/
-│       └── utils.go         # Utility functions / 工具函数
-├── src/
-│   ├── agent/
-│   │   └── agent.go         # Core AI agent loop / 核心 AI 代理循环
-│   ├── mcp/
-│   │   ├── client.go        # MCP client implementation / MCP 客户端实现
-│   │   ├── http_transport.go # HTTP transport for MCP / HTTP 传输层
-│   │   ├── manager.go       # MCP server & tool manager / MCP 服务器和工具管理器
-│   │   ├── protocol.go      # MCP protocol types / MCP 协议类型
-│   │   ├── stdio_transport.go # Stdio transport for MCP / Stdio 传输层
-│   │   └── transport.go     # Transport interface / 传输接口
-│   ├── prompt/
-│   │   └── prompt.go        # System prompt template / 系统提示词模板
-│   └── tools/
-│       ├── bash_tool.go      # Bash execution tool / Bash 执行工具
-│       ├── file_tools.go     # File read/write/edit/glob tools / 文件读写编辑工具
-│       ├── interaction.go    # User interaction types / 用户交互类型
-│       ├── load_skill.go     # Skills loader & tool / 技能加载器
-│       └── tools_define.go   # Tool definition framework / 工具定义框架
-├── conf.example             # Configuration template / 配置模板
-├── go.mod
-├── go.sum
-└── README.md
-```
-
----
+  
 
 ## License / 许可证
 

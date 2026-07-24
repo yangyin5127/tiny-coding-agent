@@ -130,7 +130,7 @@ func (a *Agent) Run(ctx context.Context) error {
 		// a.Output <- NewAgentOutput(AgentOutputTypeDebug, "Loaded MCP tool: "+tool.Name, nil)
 	}
 
-	a.Output <- NewAgentOutput(AgentOutputTypeDebug, fmt.Sprintf("Totally loaded %d MCP tools", len(mcpTools)), nil)
+	a.Output <- NewAgentOutput(AgentOutputTypeDebug, fmt.Sprintf("\tLoaded %d MCP tools in total.", len(mcpTools)), nil)
 
 	for {
 		userMessage := <-a.UserMessage
