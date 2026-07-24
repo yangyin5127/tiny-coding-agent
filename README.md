@@ -76,9 +76,6 @@ tiny-coding-agent
 
 ---
 
-### preview
-
-![Tiny Coding Agent Preview](./preview/preview.jpg)
 
 
 ### MCP Servers / MCP 服务器
@@ -120,6 +117,13 @@ Place `SKILL.md` files in the following directories:
 
 ---
   
+
+### preview
+
+![Tiny Coding Agent Preview](./preview/preview.jpg)
+
+
+---
 
 ## License / 许可证
 
