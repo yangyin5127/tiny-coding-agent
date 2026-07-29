@@ -12,7 +12,7 @@ A tiny coding agent written in Go
 - [x] coding / 编码
 - [x] skills
 - [x] MCP
-- [ ] context compact / 上下文压缩
+- [x] context compact / 上下文压缩
 - [ ] hooks / 钩子
 
 ---

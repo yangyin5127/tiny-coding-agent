@@ -21,6 +21,7 @@ var agentTools = []tools.ToolDefinition{
 	tools.EditFileTool,
 	tools.GlobTool,
 	tools.LoadSkill,
+	CompactTool,
 }
 
 const (
@@ -137,6 +138,13 @@ func (a *Agent) Run(ctx context.Context) error {
 		conversation = append(conversation, *userMessage)
 
 		for {
+
+			conversation, err = ContextCompact(ctx, a, conversation)
+			if err != nil {
+				a.Output <- NewAgentOutputError("Failed to compact context: " + err.Error())
+				continue
+			}
+
 			// agent loop
 			message, err := a.client.Messages.New(ctx, anthropic.MessageNewParams{
 				MaxTokens: 8000,
@@ -155,8 +163,21 @@ func (a *Agent) Run(ctx context.Context) error {
 
 			toolResults := []anthropic.ContentBlockParamUnion{}
 
+			manualCompact := false
 			for _, content := range message.Content {
 				if content.Type == "tool_use" {
+
+					if content.Name == CompactTool.Name {
+
+						conversation, err = CompactHistory(ctx, a, conversation[:len(conversation)-2])
+						if err != nil {
+							a.Output <- NewAgentOutputError("Failed to auto compact history: " + err.Error())
+						} else {
+							a.Output <- NewAgentOutput(AgentOutputTypeDebug, "Compacted.", nil)
+						}
+						manualCompact = true
+						continue
+					}
 					result := a.executeTool(content.ID, content.Name, content.Input)
 					toolResults = append(toolResults, result)
 				} else {
@@ -174,6 +195,10 @@ func (a *Agent) Run(ctx context.Context) error {
 
 			if len(toolResults) > 0 {
 				conversation = append(conversation, anthropic.NewUserMessage(toolResults...))
+			}
+			if manualCompact {
+
+				break
 			}
 
 			if message.StopReason != "tool_use" {
