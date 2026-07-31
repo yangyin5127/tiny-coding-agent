@@ -13,7 +13,7 @@ A tiny coding agent written in Go
 - [x] skills
 - [x] MCP
 - [x] context compact / 上下文压缩
-- [ ] hooks / 钩子
+- [x] hooks / 钩子
 
 ---
 
@@ -117,6 +117,38 @@ Place `SKILL.md` files in the following directories:
 
 ---
   
+### Hooks
+    
+`.tiny-coding-agent/hooks.json`:
+
+```
+{
+    "hooks": {
+        "PreToolUse": [
+            {
+                "matcher": "Write|Edit",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "echo \"PreToolUse hook triggered\""
+                    }
+                ]
+            }
+        ],
+        "PostToolUse": [
+            {
+                "matcher": "Write|Edit",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "echo \"PostToolUse hook triggered\""
+                    }
+                ]
+            }
+        ]
+    }
+}
+```
 
 ### preview
 

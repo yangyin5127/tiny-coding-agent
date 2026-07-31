@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"tiny-coding-agent/pkg/utils"
+	"tiny-coding-agent/src/hooks"
 	"tiny-coding-agent/src/mcp"
 	"tiny-coding-agent/src/prompt"
 	"tiny-coding-agent/src/tools"
@@ -25,11 +26,12 @@ var agentTools = []tools.ToolDefinition{
 }
 
 const (
-	AgentOutputTypeDebug    = "debug"
-	AgentOutputTypeError    = "error"
-	AgentOutputTypeText     = "text"
-	AgentOutputTypeThinking = "thinking"
-	AgentOutputTypeToolUse  = "tool_use"
+	AgentOutputTypeDebug     = "debug"
+	AgentOutputTypeError     = "error"
+	AgentOutputTypeText      = "text"
+	AgentOutputTypeThinking  = "thinking"
+	AgentOutputTypeToolUse   = "tool_use"
+	AgentOutputTypeToolHooks = "tool_hooks"
 )
 
 type AgentOutput struct {
@@ -67,6 +69,7 @@ type Agent struct {
 	InteractionRequest  chan *tools.AgentInteractionRequest
 	InteractionResponse chan *tools.AgentInteractionResponse
 	toolDefinitions     []tools.ToolDefinition
+	hookManager         *hooks.HookManager
 }
 
 func NewAgent(apiKey string, anthropicBaseUrl string) *Agent {
@@ -132,6 +135,21 @@ func (a *Agent) Run(ctx context.Context) error {
 	}
 
 	a.Output <- NewAgentOutput(AgentOutputTypeDebug, fmt.Sprintf("\tLoaded %d MCP tools in total.", len(mcpTools)), nil)
+
+	// init hook manager
+	hookManager := hooks.NewHookManager(&tools.ToolRuntime{
+		Emit: func(event tools.ToolEvent) {
+			a.Output <- NewAgentOutput(AgentOutputTypeToolHooks, "\t"+event.Message, nil)
+		},
+	})
+	err = hookManager.LoadHooks(ctx, utils.Getwd())
+	if err != nil {
+		a.Output <- NewAgentOutputError("Failed to load hooks: " + err.Error())
+		return err
+	}
+
+	a.hookManager = hookManager
+	a.Output <- NewAgentOutput(AgentOutputTypeDebug, "Loaded hooks successfully", nil)
 
 	for {
 		userMessage := <-a.UserMessage
@@ -245,6 +263,39 @@ func (a *Agent) executeTool(id, name string, input json.RawMessage) anthropic.Co
 		}
 	}
 
+	hookCtx := &hooks.HookToolContext{
+		Context:   context.Background(),
+		ToolName:  name,
+		ToolUseId: id,
+		Input:     input,
+	}
+
+	if a.hookManager != nil {
+		result, err := a.hookManager.Execute(hooks.PreToolUse, hookCtx)
+		if err != nil {
+			a.Output <- NewAgentOutputError("Hook execution failed: " + err.Error())
+			return anthropic.NewToolResultBlock(
+				id,
+				err.Error(),
+				true,
+			)
+		}
+
+		if result != nil && result.Decision == hooks.Deny {
+			a.Output <- NewAgentOutputError("Hook denied tool execution: " + result.Message)
+			return anthropic.NewToolResultBlock(
+				id,
+				result.Message,
+				false,
+			)
+		}
+
+		if result != nil {
+			input = result.Input
+		}
+
+	}
+
 	a.Output <- NewAgentOutput(AgentOutputTypeToolUse, "Ran "+name+"", nil)
 	result, err := toolDefinition.Execute(input, &tools.ToolRuntime{
 		Emit: func(event tools.ToolEvent) {
@@ -253,7 +304,23 @@ func (a *Agent) executeTool(id, name string, input json.RawMessage) anthropic.Co
 	})
 
 	if err != nil {
+		if a.hookManager != nil {
+			_, _ = a.hookManager.Execute(hooks.PostToolUseFailure, hookCtx)
+		}
+
 		return anthropic.NewToolResultBlock(id, err.Error(), true)
+	}
+
+	hookCtx.Output = result
+	if a.hookManager != nil {
+		postResult, err := a.hookManager.Execute(hooks.PostToolUse, hookCtx)
+		if err != nil {
+			a.Output <- NewAgentOutputError("Post tool use hook execution failed: " + err.Error())
+		}
+
+		if postResult != nil && postResult.Output != "" {
+			result = postResult.Output
+		}
 	}
 
 	return anthropic.NewToolResultBlock(id, result, false)

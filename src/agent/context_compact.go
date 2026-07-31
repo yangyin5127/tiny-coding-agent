@@ -15,11 +15,11 @@ import (
 )
 
 const (
-	CONTEXT_LIMIT       = 80000
-	KEEP_RECENT         = 3
-	PERSIST_THRESHOLD   = 30000
-	TOOL_RESULT_PREVIEW = 20000
-	TOOL_RESULT_BUDGET  = 20000
+	CONTEXT_LIMIT       = 150_000
+	KEEP_RECENT         = 0
+	PERSIST_THRESHOLD   = 100000
+	TOOL_RESULT_PREVIEW = 50000
+	TOOL_RESULT_BUDGET  = 50000
 )
 
 type ContextCompactConfig struct {
@@ -161,10 +161,10 @@ func MicroContext(ctx context.Context, messages []anthropic.MessageParam) ([]ant
 		}
 	}
 
-	if len(toolResults) > DefaultContextCompactConfig.KeepRecent {
+	if DefaultContextCompactConfig.KeepRecent > 0 && len(toolResults) > DefaultContextCompactConfig.KeepRecent {
 		for i := 0; i < len(toolResults)-DefaultContextCompactConfig.KeepRecent; i++ {
 			for j := 0; j < len(toolResults[i].Content); j++ {
-				if toolResults[i].Content[j].OfText != nil && len(toolResults[i].Content[j].OfText.Text) > 200 {
+				if toolResults[i].Content[j].OfText != nil && len(toolResults[i].Content[j].OfText.Text) > 50_000 {
 					toolResults[i].Content[j].OfText.Text = "[Earlier tool result compacted. Re-run if needed.]"
 				}
 			}
